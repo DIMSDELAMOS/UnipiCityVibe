@@ -19,11 +19,6 @@
 * **Location API:** Google Play Services (GeofencingClient)
 * **UI Components:** RecyclerView, ConstraintLayout, Material Components
 
-## 📸 Screenshots
-*(Note: Add your screenshots to the repository and link them here!)*
-| Login Screen | Event List | Event Details (Greek) | Geofence Notification |
-| :---: | :---: | :---: | :---: |
-| [Image placeholder] | [Image placeholder] | [Image placeholder] | [Image placeholder] |
 
 ## 🧪 How to Test the Geofencing Feature (For Reviewers)
 
