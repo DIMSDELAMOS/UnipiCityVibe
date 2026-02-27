@@ -1,0 +1,39 @@
+package com.example.unipicityvibe
+
+import android.content.Context
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import com.google.android.material.switchmaterial.SwitchMaterial
+
+class SettingsActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_settings)
+
+        val switchDarkMode = findViewById<SwitchMaterial>(R.id.switchDarkMode)
+
+        // 1. Open "Shared Preferences" (Local phone storage)
+        val sharedPreferences = getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
+        val isDarkMode = sharedPreferences.getBoolean("DARK_MODE", false)
+
+        // 2. Set the switch to the correct position
+        switchDarkMode.isChecked = isDarkMode
+
+        // 3. Listen for changes
+        switchDarkMode.setOnCheckedChangeListener { _, isChecked ->
+            // Save the new preference
+            val editor = sharedPreferences.edit()
+            editor.putBoolean("DARK_MODE", isChecked)
+            editor.apply()
+
+            // Apply the theme instantly
+            if (isChecked) {
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+            } else {
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+            }
+        }
+    }
+}

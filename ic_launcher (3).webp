@@ -1,0 +1,196 @@
+package com.example.unipicityvibe
+
+import android.Manifest
+import android.app.PendingIntent
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.util.Log
+import android.view.View
+import android.widget.ProgressBar
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofencingClient
+import com.google.android.gms.location.GeofencingRequest
+import com.google.android.gms.location.LocationServices
+import com.google.firebase.database.*
+import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var progressBar: ProgressBar
+    private lateinit var eventList: ArrayList<Event>
+    private lateinit var adapter: EventsAdapter
+    private lateinit var databaseReference: DatabaseReference
+
+    // Geofencing Client
+    private lateinit var geofencingClient: GeofencingClient
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Apply saved theme preference
+        val prefs = getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
+        val isDark = prefs.getBoolean("DARK_MODE", false)
+        if (isDark) {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+        } else {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+        }
+        setContentView(R.layout.activity_main)
+
+
+        // 1. Find the new button
+        val btnLogout = findViewById<android.widget.Button>(R.id.btnLogout)
+
+        // 2. Set the click listener
+        btnLogout.setOnClickListener {
+            // Sign out from Firebase
+            com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+
+            // Go back to Login Activity
+            val intent = Intent(this, LoginActivity::class.java)
+
+            // Clear the "Back Stack" so the user can't press Back to return here
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+
+            startActivity(intent)
+            finish() // Close MainActivity
+        }
+
+        // Initialize UI
+        recyclerView = findViewById(R.id.recyclerViewEvents)
+        progressBar = findViewById(R.id.progressBar)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        recyclerView.setHasFixedSize(true)
+
+        eventList = arrayListOf()
+        adapter = EventsAdapter(eventList)
+        recyclerView.adapter = adapter
+
+        // Initialize Geofencing
+        geofencingClient = LocationServices.getGeofencingClient(this)
+
+        val btnSettings = findViewById<android.widget.Button>(R.id.btnSettings)
+        btnSettings.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        // Handle Clicks
+        adapter.onItemClick = { event ->
+            val intent = Intent(this, EventDetailActivity::class.java)
+            intent.putExtra("eventId", event.id)
+            intent.putExtra("title", event.title)
+            intent.putExtra("description", event.description)
+            intent.putExtra("date", event.date)
+            intent.putExtra("price", event.price)
+            startActivity(intent)
+        }
+
+        // Connect to Firebase
+        databaseReference = FirebaseDatabase.getInstance().getReference("events")
+
+        // CHECK PERMISSIONS FIRST
+        checkPermissionsAndLoadData()
+    }
+
+    private fun checkPermissionsAndLoadData() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // Permission is not granted, request it
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 100)
+        } else {
+            // Permission granted, load data and set geofences
+            getEventsData()
+        }
+    }
+
+    // Handle the user's response to the permission dialog
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 100) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                getEventsData()
+            } else {
+                Toast.makeText(this, "Location permission is needed for notifications!", Toast.LENGTH_LONG).show()
+                // We still load data so the app is usable, just no notifications
+                getEventsData()
+            }
+        }
+    }
+
+    private fun getEventsData() {
+        progressBar.visibility = View.VISIBLE
+        databaseReference.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                eventList.clear()
+                if (snapshot.exists()) {
+                    for (eventSnapshot in snapshot.children) {
+                        val event = eventSnapshot.getValue(Event::class.java)
+                        if (event != null) {
+                            eventList.add(event)
+                            // Add a geofence for this event
+                            addGeofenceForEvent(event)
+                        }
+                    }
+                    adapter.notifyDataSetChanged()
+                }
+                progressBar.visibility = View.GONE
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                progressBar.visibility = View.GONE
+            }
+        })
+    }
+
+    private fun addGeofenceForEvent(event: Event) {
+        // 1. Double-check permission effectively
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+
+        // 2. Create the Geofence Object
+        val geofence = Geofence.Builder()
+            .setRequestId(event.id)
+            .setCircularRegion(event.latitude, event.longitude, 200f) // 200m radius
+            .setExpirationDuration(Geofence.NEVER_EXPIRE)
+            .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
+            .build()
+
+        // 3. Build the Request
+        val geofencingRequest = GeofencingRequest.Builder()
+            .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+            .addGeofence(geofence)
+            .build()
+
+        // 4. Create PendingIntent
+        val intent = Intent(this, GeofenceBroadcastReceiver::class.java)
+        // We use FLAG_MUTABLE because the system needs to modify this intent to add location data
+        val pendingIntent = PendingIntent.getBroadcast(
+            this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+
+        // 5. THE FIX: Wrap the sensitive call in try-catch to prevent crashes
+        try {
+            geofencingClient.addGeofences(geofencingRequest, pendingIntent)
+                .addOnSuccessListener {
+                    Log.d("Geofence", "Geofence added for ${event.title}")
+                }
+                .addOnFailureListener {
+                    // This logs the specific error instead of crashing the app
+                    Log.e("Geofence", "Failed to add geofence: ${it.message}")
+                }
+        } catch (e: SecurityException) {
+            Log.e("Geofence", "Security Exception: ${e.message}")
+        } catch (e: Exception) {
+            Log.e("Geofence", "Unknown Error: ${e.message}")
+        }
+    }
+}

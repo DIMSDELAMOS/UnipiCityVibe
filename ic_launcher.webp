@@ -1,0 +1,70 @@
+package com.example.unipicityvibe
+
+import android.os.Bundle
+import android.widget.Button
+import android.widget.EditText
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import com.google.firebase.database.FirebaseDatabase
+
+class EventDetailActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_event_detail)
+
+        // 1. Get data passed from the list
+        val eventId = intent.getStringExtra("eventId") ?: ""
+        val title = intent.getStringExtra("title")
+        val desc = intent.getStringExtra("description")
+        val date = intent.getStringExtra("date")
+        val price = intent.getDoubleExtra("price", 0.0)
+
+        // 2. Setup UI
+        findViewById<TextView>(R.id.tvDetailTitle).text = title
+        findViewById<TextView>(R.id.tvDetailDesc).text = desc
+        findViewById<TextView>(R.id.tvDetailDate).text = date
+        findViewById<TextView>(R.id.tvDetailPrice).text = "Price: €$price"
+
+        val etName = findViewById<EditText>(R.id.etCustomerName)
+        val btnBook = findViewById<Button>(R.id.btnBookTicket)
+
+        // 3. Handle Booking
+        btnBook.setOnClickListener {
+            val name = etName.text.toString()
+
+            if (name.isEmpty()) {
+                Toast.makeText(this, "Please enter your name", Toast.LENGTH_SHORT).show()
+            } else {
+                saveBookingToFirebase(eventId, name)
+            }
+        }
+    }
+
+    private fun saveBookingToFirebase(eventId: String, name: String) {
+        // Create a reference to the "bookings" node
+        val bookingsRef = FirebaseDatabase.getInstance().getReference("bookings")
+
+        // Generate a unique key for this new booking
+        val bookingId = bookingsRef.push().key
+
+        if (bookingId != null) {
+            val bookingData = mapOf(
+                "customer_name" to name,
+                "event_id" to eventId,
+                "timestamp" to System.currentTimeMillis()
+            )
+
+            // Save to DB
+            bookingsRef.child(bookingId).setValue(bookingData)
+                .addOnSuccessListener {
+                    Toast.makeText(this, "Booking Successful!", Toast.LENGTH_LONG).show()
+                    finish() // Close the screen and go back
+                }
+                .addOnFailureListener {
+                    Toast.makeText(this, "Booking Failed: ${it.message}", Toast.LENGTH_SHORT).show()
+                }
+        }
+    }
+}

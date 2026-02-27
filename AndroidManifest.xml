@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "416641772577",
+    "firebase_url": "https://unipicityvibe-backend-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "unipicityvibe-backend",
+    "storage_bucket": "unipicityvibe-backend.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:416641772577:android:9076bc199343e27d39c760",
+        "android_client_info": {
+          "package_name": "com.example.unipicityvibe"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBoOU1U5Vfu_Wo24kBuIr8690RenF7pszk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

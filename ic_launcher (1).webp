@@ -1,0 +1,69 @@
+package com.example.unipicityvibe
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofencingEvent
+
+class GeofenceBroadcastReceiver : BroadcastReceiver() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        val geofencingEvent = GeofencingEvent.fromIntent(intent)
+
+        // Check for errors
+        if (geofencingEvent == null || geofencingEvent.hasError()) {
+            Log.e("Geofence", "Error receiving geofence event")
+            return
+        }
+
+        // Get the type of transition (Enter, Exit, Dwell)
+        val geofenceTransition = geofencingEvent.geofenceTransition
+
+        // We only care if the user ENTERS the area [cite: 8]
+        if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER) {
+            // Get the list of geofences that were triggered
+            val triggeringGeofences = geofencingEvent.triggeringGeofences
+
+            if (!triggeringGeofences.isNullOrEmpty()) {
+                // For simplicity, we just notify about the first one triggered
+                val eventId = triggeringGeofences[0].requestId
+                sendNotification(context, "Event Nearby!", "You are close to an event venue! (ID: $eventId)")
+            }
+        }
+    }
+
+    private fun sendNotification(context: Context, title: String, message: String) {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channelId = "event_geofence_channel"
+
+        // Create Notification Channel (Required for Android 8+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(channelId, "Nearby Events", NotificationManager.IMPORTANCE_HIGH)
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        // Create the intent to open MainActivity when clicked [cite: 21]
+        val intent = Intent(context, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Build the notification
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_map) // Uses a default Android map icon
+            .setContentTitle(title)
+            .setContentText(message)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        notificationManager.notify(1001, notification)
+    }
+}
